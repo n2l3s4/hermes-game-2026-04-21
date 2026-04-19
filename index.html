@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bobo's Hide and Seek Safari</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #2d6a4f;
+  font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+  touch-action: manipulation;
+}
+#gameCanvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+#muteBtn {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 56px; height: 56px;
+  border: none; border-radius: 50%;
+  background: #ffd43b;
+  color: #fff;
+  font-size: 26px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #f08c00;
+  transition: transform 0.1s;
+  z-index: 10;
+}
+#muteBtn:active { transform: translateY(4px); box-shadow: 0 0 0 #f08c00; }
+</style>
+</head>
+<body>
+<button id="muteBtn" aria-label="Mute">🔊</button>
+<canvas id="gameCanvas"></canvas>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize(){ W=canvas.width=innerWidth; H=canvas.height=innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+// Audio
+let audioCtx = null;
+let muted = false;
+const muteBtn = document.getElementById('muteBtn');
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playTone(freq, type, duration, vol=0.15, when=0) {
+  if (muted || !audioCtx) return;
+  const t = audioCtx.currentTime + when;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
+function playPop() {
+  if (muted || !audioCtx) return;
+  playTone(600 + Math.random()*300, 'sine', 0.12, 0.2);
+}
+
+function playFound() {
+  if (muted || !audioCtx) return;
+  playTone(523, 'sine', 0.1, 0.18);
+  playTone(659, 'sine', 0.1, 0.18, 0.1);
+  playTone(784, 'sine', 0.25, 0.18, 0.2);
+}
+
+function playWinMusic() {
+  if (muted || !audioCtx) return;
+  const melody = [523, 659, 784, 1047, 784, 1047, 1175, 1319];
+  melody.forEach((f, i) => playTone(f, 'triangle', 0.35, 0.12, i * 0.2));
+}
+
+function playBounce() {
+  if (muted || !audioCtx) return;
+  playTone(300, 'triangle', 0.08, 0.15);
+}
+
+// Game state
+const animals = [
+  {name:'Lion', emoji:'🦁', color:'#f59f00', x:0.15, y:0.25, r:30, found:false, scale:0},
+  {name:'Monkey', emoji:'🐵', color:'#e8590c', x:0.75, y:0.30, r:28, found:false, scale:0},
+  {name:'Elephant', emoji:'🐘', color:'#868e96', x:0.45, y:0.65, r:32, found:false, scale:0},
+  {name:'Giraffe', emoji:'🦒', color:'#fcc419', x:0.85, y:0.72, r:28, found:false, scale:0},
+  {name:'Zebra', emoji:'🦓', color:'#495057', x:0.25, y:0.80, r:28, found:false, scale:0},
+  {name:'Hippo', emoji:'🦛', color:'#9775fa', x:0.60, y:0.45, r:30, found:false, scale:0},
+  {name:'Tiger', emoji:'🐯', color:'#ff922b', x:0.10, y:0.55, r:28, found:false, scale:0},
+  {name:'Panda', emoji:'🐼', color:'#343a40', x:0.90, y:0.20, r:26, found:false, scale:0}
+];
+let gameOver = false;
+let foundCount = 0;
+let particles = [];
+let startTime = Date.now();
+let titleY = -60;
+let gameStarted = false;
+
+function resetGame() {
+  animals.forEach(a => { a.found = false; a.scale = 0; });
+  gameOver = false;
+  foundCount = 0;
+  particles = [];
+  startTime = Date.now();
+  titleY = -60;
+  gameStarted = false;
+}
+
+// Particles
+function spawnParticles(x, y, color) {
+  for (let i = 0; i < 12; i++) {
+    const angle = (Math.PI * 2 * i) / 12;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * (3 + Math.random() * 3),
+      vy: Math.sin(angle) * (3 + Math.random() * 3),
+      life: 1,
+      color,
+      size: 4 + Math.random() * 6
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life -= 0.02;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// Background
+function drawBackground() {
+  // Sky
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#87CEEB');
+  grad.addColorStop(0.45, '#b2f2bb');
+  grad.addColorStop(0.45, '#2d6a4f');
+  grad.addColorStop(1, '#1b4332');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Sun
+  ctx.fillStyle = '#fcc419';
+  ctx.beginPath();
+  ctx.arc(W * 0.12, H * 0.12, Math.min(W, H) * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffe066';
+  ctx.beginPath();
+  ctx.arc(W * 0.12, H * 0.12, Math.min(W, H) * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Clouds
+  drawCloud(W * 0.25, H * 0.10, 0.8);
+  drawCloud(W * 0.70, H * 0.08, 1.0);
+  drawCloud(W * 0.55, H * 0.15, 0.6);
+
+  // Ground hills
+  ctx.fillStyle = '#40916c';
+  ctx.beginPath();
+  ctx.ellipse(W * 0.20, H * 0.50, W * 0.35, H * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#52b788';
+  ctx.beginPath();
+  ctx.ellipse(W * 0.80, H * 0.48, W * 0.30, H * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#2d6a4f';
+  ctx.beginPath();
+  ctx.ellipse(W * 0.50, H * 0.55, W * 0.40, H * 0.20, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Trees
+  drawTree(W * 0.08, H * 0.42, 0.9);
+  drawTree(W * 0.35, H * 0.38, 0.7);
+  drawTree(W * 0.65, H * 0.40, 1.0);
+  drawTree(W * 0.92, H * 0.45, 0.8);
+  drawTree(W * 0.18, H * 0.85, 1.1);
+  drawTree(W * 0.82, H * 0.88, 0.9);
+
+  // Bushes
+  drawBush(W * 0.48, H * 0.52, 1.0);
+  drawBush(W * 0.28, H * 0.78, 0.8);
+  drawBush(W * 0.72, H * 0.75, 0.9);
+  drawBush(W * 0.05, H * 0.62, 0.7);
+  drawBush(W * 0.95, H * 0.60, 0.8);
+}
+
+function drawCloud(x, y, s) {
+  const r = Math.min(W, H) * 0.04 * s;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.arc(x - r, y, r, 0, Math.PI * 2);
+  ctx.arc(x + r, y, r, 0, Math.PI * 2);
+  ctx.arc(x, y - r * 0.5, r * 0.9, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawTree(x, y, s) {
+  const trunkW = Math.min(W, H) * 0.025 * s;
+  const trunkH = Math.min(W, H) * 0.10 * s;
+  ctx.fillStyle = '#8B4513';
+  ctx.fillRect(x - trunkW / 2, y, trunkW, trunkH);
+  ctx.fillStyle = '#2d6a4f';
+  ctx.beginPath();
+  ctx.arc(x, y - trunkH * 0.2, Math.min(W, H) * 0.07 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#40916c';
+  ctx.beginPath();
+  ctx.arc(x - trunkW, y + trunkH * 0.1, Math.min(W, H) * 0.05 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + trunkW, y + trunkH * 0.1, Math.min(W, H) * 0.05 * s, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBush(x, y, s) {
+  const r = Math.min(W, H) * 0.05 * s;
+  ctx.fillStyle = '#1b4332';
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.arc(x - r * 0.7, y + r * 0.3, r * 0.8, 0, Math.PI * 2);
+  ctx.arc(x + r * 0.7, y + r * 0.3, r * 0.8, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Draw hidden animal (just peeking eyes when hiding)
+function drawAnimal(a) {
+  const x = a.x * W;
+  const y = a.y * H;
+  const r = Math.min(W, H) * 0.045;
+
+  if (a.found) {
+    // Found! Show full animal with scale animation
+    if (a.scale < 1) a.scale += 0.05;
+    const s = a.scale;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.8, r * 0.9, r * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body circle
+    ctx.fillStyle = a.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Emoji face
+    ctx.font = `${r * 1.2}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(a.emoji, 0, r * 0.05);
+
+    ctx.restore();
+  } else {
+    // Hiding - show just cute peeking eyes
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Eyes
+    const eyeY = -r * 0.1;
+    const eyeX = r * 0.35;
+    const eyeR = r * 0.18;
+
+    // White
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-eyeX, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pupils (looking around slightly based on time)
+    const t = Date.now() * 0.002;
+    const lookX = Math.sin(t + a.x * 10) * eyeR * 0.3;
+    const lookY = Math.cos(t * 0.7 + a.y * 10) * eyeR * 0.2;
+    ctx.fillStyle = '#212529';
+    ctx.beginPath();
+    ctx.arc(-eyeX + lookX, eyeY + lookY, eyeR * 0.5, 0, Math.PI * 2);
+    ctx.arc(eyeX + lookX, eyeY + lookY, eyeR * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Little shine
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-eyeX + lookX - eyeR * 0.15, eyeY + lookY - eyeR * 0.15, eyeR * 0.2, 0, Math.PI * 2);
+    ctx.arc(eyeX + lookX - eyeR * 0.15, eyeY + lookY - eyeR * 0.15, eyeR * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+function drawTitle() {
+  if (titleY < H * 0.08) titleY += 3;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 4;
+
+  ctx.fillStyle = '#ffd43b';
+  ctx.strokeStyle = '#e67700';
+  ctx.lineWidth = 4;
+  ctx.font = `bold ${Math.min(W, H) * 0.065}px 'Comic Sans MS', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const title = "Bobo's Hide and Seek Safari";
+  ctx.strokeText(title, W / 2, titleY);
+  ctx.fillText(title, W / 2, titleY);
+
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.restore();
+}
+
+function drawUI() {
+  // Counter
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.roundRect(W * 0.02, H * 0.02, W * 0.22, H * 0.08, 16);
+  ctx.fill();
+  ctx.strokeStyle = '#ffd43b';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = '#2d6a4f';
+  ctx.font = `bold ${Math.min(W, H) * 0.035}px 'Comic Sans MS', sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`Found: ${foundCount} / ${animals.length}`, W * 0.04, H * 0.06);
+  ctx.restore();
+}
+
+function drawWinScreen() {
+  const overlay = 0.6 + Math.sin(Date.now() * 0.003) * 0.1;
+  ctx.fillStyle = `rgba(0,0,0,${overlay})`;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 6;
+
+  // Banner
+  ctx.fillStyle = '#ffd43b';
+  ctx.beginPath();
+  ctx.roundRect(W / 2 - W * 0.35, H / 2 - H * 0.22, W * 0.70, H * 0.44, 24);
+  ctx.fill();
+  ctx.strokeStyle = '#e67700';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  // Text
+  ctx.fillStyle = '#2d6a4f';
+  ctx.font = `bold ${Math.min(W, H) * 0.065}px 'Comic Sans MS', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Good Game, Bobo!', W / 2, H / 2 - H * 0.08);
+
+  ctx.fillStyle = '#e67700';
+  ctx.font = `${Math.min(W, H) * 0.04}px 'Comic Sans MS', sans-serif`;
+  ctx.fillText(`You found all ${animals.length} animals!`, W / 2, H / 2 + H * 0.02);
+
+  // Play again button
+  const btnY = H / 2 + H * 0.12;
+  const btnW = W * 0.30;
+  const btnH = H * 0.08;
+  ctx.fillStyle = '#51cf66';
+  ctx.beginPath();
+  ctx.roundRect(W / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 16);
+  ctx.fill();
+  ctx.strokeStyle = '#2b8a3e';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.min(W, H) * 0.04}px 'Comic Sans MS', sans-serif`;
+  ctx.fillText('Play Again 🔄', W / 2, btnY);
+
+  ctx.restore();
+}
+
+function drawHint() {
+  if (gameOver || foundCount === animals.length) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.roundRect(W * 0.25, H * 0.90, W * 0.50, H * 0.07, 12);
+  ctx.fill();
+  ctx.fillStyle = '#495057';
+  ctx.font = `${Math.min(W, H) * 0.028}px 'Comic Sans MS', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Click the peeking eyes to find the animals! 👀', W / 2, H * 0.935);
+  ctx.restore();
+}
+
+// Main loop
+function update() {
+  if (!gameStarted && Date.now() - startTime > 500) gameStarted = true;
+  updateParticles();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+
+  animals.forEach(a => drawAnimal(a));
+  drawParticles();
+  drawTitle();
+  drawUI();
+  drawHint();
+
+  if (gameOver) drawWinScreen();
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Input
+function handleClick(e) {
+  initAudio();
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX || e.touches?.[0]?.clientX || 0) - rect.left;
+  const my = (e.clientY || e.touches?.[0]?.clientY || 0) - rect.top;
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = mx * scaleX;
+  const y = my * scaleY;
+
+  if (gameOver) {
+    const btnY = H / 2 + H * 0.12;
+    const btnW = W * 0.30;
+    const btnH = H * 0.08;
+    if (x > W / 2 - btnW / 2 && x < W / 2 + btnW / 2 &&
+        y > btnY - btnH / 2 && y < btnY + btnH / 2) {
+      playBounce();
+      resetGame();
+    }
+    return;
+  }
+
+  let foundOne = false;
+  animals.forEach(a => {
+    if (a.found) return;
+    const ax = a.x * W;
+    const ay = a.y * H;
+    const r = Math.min(W, H) * 0.06;
+    const dx = x - ax;
+    const dy = y - ay;
+    if (dx * dx + dy * dy < r * r) {
+      a.found = true;
+      foundCount++;
+      foundOne = true;
+      spawnParticles(ax, ay, a.color);
+      playFound();
+    }
+  });
+
+  if (!foundOne) {
+    playPop();
+  }
+
+  if (foundCount === animals.length && !gameOver) {
+    gameOver = true;
+    setTimeout(() => playWinMusic(), 400);
+  }
+}
+
+canvas.addEventListener('mousedown', handleClick);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleClick(e); }, {passive:false});
+
+muteBtn.addEventListener('click', () => {
+  muted = !muted;
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+});
+
+// Start
+loop();
+</script>
+</body>
+</html>
