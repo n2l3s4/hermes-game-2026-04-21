@@ -2,16 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bobo's Hide and Seek Safari</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bobo's Shape Safari</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
   width: 100%; height: 100%;
   overflow: hidden;
   background: #2d6a4f;
-  font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-  touch-action: manipulation;
+  font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', sans-serif;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 #gameCanvas {
   display: block;
@@ -20,12 +22,15 @@ html, body {
 }
 #muteBtn {
   position: absolute;
-  top: 12px; right: 12px;
-  width: 56px; height: 56px;
-  border: none; border-radius: 50%;
+  top: 12px;
+  right: 12px;
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 50%;
   background: #ffd43b;
   color: #fff;
-  font-size: 26px;
+  font-size: 24px;
   cursor: pointer;
   box-shadow: 0 4px 0 #f08c00;
   transition: transform 0.1s;
@@ -44,7 +49,7 @@ let W, H;
 function resize(){ W=canvas.width=innerWidth; H=canvas.height=innerHeight; }
 window.addEventListener('resize', resize); resize();
 
-// Audio
+// Audio system using Web Audio API
 let audioCtx = null;
 let muted = false;
 const muteBtn = document.getElementById('muteBtn');
@@ -71,457 +76,610 @@ function playTone(freq, type, duration, vol=0.15, when=0) {
 
 function playPop() {
   if (muted || !audioCtx) return;
-  playTone(600 + Math.random()*300, 'sine', 0.12, 0.2);
+  playTone(500 + Math.random()*300, 'sine', 0.1, 0.2);
 }
 
-function playFound() {
+function playCorrect() {
   if (muted || !audioCtx) return;
-  playTone(523, 'sine', 0.1, 0.18);
-  playTone(659, 'sine', 0.1, 0.18, 0.1);
-  playTone(784, 'sine', 0.25, 0.18, 0.2);
+  playTone(523, 'sine', 0.12, 0.18);
+  playTone(659, 'sine', 0.12, 0.18, 0.1);
+  playTone(784, 'sine', 0.2, 0.18, 0.2);
+}
+
+function playWrong() {
+  if (muted || !audioCtx) return;
+  playTone(200, 'sawtooth', 0.2, 0.08);
 }
 
 function playWinMusic() {
   if (muted || !audioCtx) return;
-  const melody = [523, 659, 784, 1047, 784, 1047, 1175, 1319];
-  melody.forEach((f, i) => playTone(f, 'triangle', 0.35, 0.12, i * 0.2));
+  const melody = [523, 659, 784, 1047, 784, 1047, 1175, 1319, 1568];
+  melody.forEach((f, i) => playTone(f, 'triangle', 0.35, 0.12, i * 0.18));
 }
 
-function playBounce() {
+function playCheer() {
   if (muted || !audioCtx) return;
-  playTone(300, 'triangle', 0.08, 0.15);
-}
-
-// Game state
-const animals = [
-  {name:'Lion', emoji:'🦁', color:'#f59f00', x:0.15, y:0.25, r:30, found:false, scale:0},
-  {name:'Monkey', emoji:'🐵', color:'#e8590c', x:0.75, y:0.30, r:28, found:false, scale:0},
-  {name:'Elephant', emoji:'🐘', color:'#868e96', x:0.45, y:0.65, r:32, found:false, scale:0},
-  {name:'Giraffe', emoji:'🦒', color:'#fcc419', x:0.85, y:0.72, r:28, found:false, scale:0},
-  {name:'Zebra', emoji:'🦓', color:'#495057', x:0.25, y:0.80, r:28, found:false, scale:0},
-  {name:'Hippo', emoji:'🦛', color:'#9775fa', x:0.60, y:0.45, r:30, found:false, scale:0},
-  {name:'Tiger', emoji:'🐯', color:'#ff922b', x:0.10, y:0.55, r:28, found:false, scale:0},
-  {name:'Panda', emoji:'🐼', color:'#343a40', x:0.90, y:0.20, r:26, found:false, scale:0}
-];
-let gameOver = false;
-let foundCount = 0;
-let particles = [];
-let startTime = Date.now();
-let titleY = -60;
-let gameStarted = false;
-
-function resetGame() {
-  animals.forEach(a => { a.found = false; a.scale = 0; });
-  gameOver = false;
-  foundCount = 0;
-  particles = [];
-  startTime = Date.now();
-  titleY = -60;
-  gameStarted = false;
-}
-
-// Particles
-function spawnParticles(x, y, color) {
-  for (let i = 0; i < 12; i++) {
-    const angle = (Math.PI * 2 * i) / 12;
-    particles.push({
-      x, y,
-      vx: Math.cos(angle) * (3 + Math.random() * 3),
-      vy: Math.sin(angle) * (3 + Math.random() * 3),
-      life: 1,
-      color,
-      size: 4 + Math.random() * 6
-    });
+  for (let i = 0; i < 6; i++) {
+    playTone(400 + Math.random()*800, 'sine', 0.3, 0.1, i * 0.08);
   }
 }
-
-function updateParticles() {
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.15;
-    p.life -= 0.02;
-    if (p.life <= 0) particles.splice(i, 1);
-  }
-}
-
-function drawParticles() {
-  particles.forEach(p => {
-    ctx.globalAlpha = p.life;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-}
-
-// Background
-function drawBackground() {
-  // Sky
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, '#87CEEB');
-  grad.addColorStop(0.45, '#b2f2bb');
-  grad.addColorStop(0.45, '#2d6a4f');
-  grad.addColorStop(1, '#1b4332');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Sun
-  ctx.fillStyle = '#fcc419';
-  ctx.beginPath();
-  ctx.arc(W * 0.12, H * 0.12, Math.min(W, H) * 0.08, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#ffe066';
-  ctx.beginPath();
-  ctx.arc(W * 0.12, H * 0.12, Math.min(W, H) * 0.06, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Clouds
-  drawCloud(W * 0.25, H * 0.10, 0.8);
-  drawCloud(W * 0.70, H * 0.08, 1.0);
-  drawCloud(W * 0.55, H * 0.15, 0.6);
-
-  // Ground hills
-  ctx.fillStyle = '#40916c';
-  ctx.beginPath();
-  ctx.ellipse(W * 0.20, H * 0.50, W * 0.35, H * 0.18, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#52b788';
-  ctx.beginPath();
-  ctx.ellipse(W * 0.80, H * 0.48, W * 0.30, H * 0.15, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#2d6a4f';
-  ctx.beginPath();
-  ctx.ellipse(W * 0.50, H * 0.55, W * 0.40, H * 0.20, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Trees
-  drawTree(W * 0.08, H * 0.42, 0.9);
-  drawTree(W * 0.35, H * 0.38, 0.7);
-  drawTree(W * 0.65, H * 0.40, 1.0);
-  drawTree(W * 0.92, H * 0.45, 0.8);
-  drawTree(W * 0.18, H * 0.85, 1.1);
-  drawTree(W * 0.82, H * 0.88, 0.9);
-
-  // Bushes
-  drawBush(W * 0.48, H * 0.52, 1.0);
-  drawBush(W * 0.28, H * 0.78, 0.8);
-  drawBush(W * 0.72, H * 0.75, 0.9);
-  drawBush(W * 0.05, H * 0.62, 0.7);
-  drawBush(W * 0.95, H * 0.60, 0.8);
-}
-
-function drawCloud(x, y, s) {
-  const r = Math.min(W, H) * 0.04 * s;
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.beginPath();
-  ctx.arc(x - r, y, r, 0, Math.PI * 2);
-  ctx.arc(x + r, y, r, 0, Math.PI * 2);
-  ctx.arc(x, y - r * 0.5, r * 0.9, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawTree(x, y, s) {
-  const trunkW = Math.min(W, H) * 0.025 * s;
-  const trunkH = Math.min(W, H) * 0.10 * s;
-  ctx.fillStyle = '#8B4513';
-  ctx.fillRect(x - trunkW / 2, y, trunkW, trunkH);
-  ctx.fillStyle = '#2d6a4f';
-  ctx.beginPath();
-  ctx.arc(x, y - trunkH * 0.2, Math.min(W, H) * 0.07 * s, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#40916c';
-  ctx.beginPath();
-  ctx.arc(x - trunkW, y + trunkH * 0.1, Math.min(W, H) * 0.05 * s, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x + trunkW, y + trunkH * 0.1, Math.min(W, H) * 0.05 * s, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawBush(x, y, s) {
-  const r = Math.min(W, H) * 0.05 * s;
-  ctx.fillStyle = '#1b4332';
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.arc(x - r * 0.7, y + r * 0.3, r * 0.8, 0, Math.PI * 2);
-  ctx.arc(x + r * 0.7, y + r * 0.3, r * 0.8, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Draw hidden animal (just peeking eyes when hiding)
-function drawAnimal(a) {
-  const x = a.x * W;
-  const y = a.y * H;
-  const r = Math.min(W, H) * 0.045;
-
-  if (a.found) {
-    // Found! Show full animal with scale animation
-    if (a.scale < 1) a.scale += 0.05;
-    const s = a.scale;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(s, s);
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.beginPath();
-    ctx.ellipse(0, r * 0.8, r * 0.9, r * 0.3, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Body circle
-    ctx.fillStyle = a.color;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Emoji face
-    ctx.font = `${r * 1.2}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(a.emoji, 0, r * 0.05);
-
-    ctx.restore();
-  } else {
-    // Hiding - show just cute peeking eyes
-    ctx.save();
-    ctx.translate(x, y);
-
-    // Eyes
-    const eyeY = -r * 0.1;
-    const eyeX = r * 0.35;
-    const eyeR = r * 0.18;
-
-    // White
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(-eyeX, eyeY, eyeR, 0, Math.PI * 2);
-    ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Pupils (looking around slightly based on time)
-    const t = Date.now() * 0.002;
-    const lookX = Math.sin(t + a.x * 10) * eyeR * 0.3;
-    const lookY = Math.cos(t * 0.7 + a.y * 10) * eyeR * 0.2;
-    ctx.fillStyle = '#212529';
-    ctx.beginPath();
-    ctx.arc(-eyeX + lookX, eyeY + lookY, eyeR * 0.5, 0, Math.PI * 2);
-    ctx.arc(eyeX + lookX, eyeY + lookY, eyeR * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Little shine
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(-eyeX + lookX - eyeR * 0.15, eyeY + lookY - eyeR * 0.15, eyeR * 0.2, 0, Math.PI * 2);
-    ctx.arc(eyeX + lookX - eyeR * 0.15, eyeY + lookY - eyeR * 0.15, eyeR * 0.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  }
-}
-
-function drawTitle() {
-  if (titleY < H * 0.08) titleY += 3;
-
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.3)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 4;
-
-  ctx.fillStyle = '#ffd43b';
-  ctx.strokeStyle = '#e67700';
-  ctx.lineWidth = 4;
-  ctx.font = `bold ${Math.min(W, H) * 0.065}px 'Comic Sans MS', sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  const title = "Bobo's Hide and Seek Safari";
-  ctx.strokeText(title, W / 2, titleY);
-  ctx.fillText(title, W / 2, titleY);
-
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  ctx.restore();
-}
-
-function drawUI() {
-  // Counter
-  ctx.save();
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.beginPath();
-  ctx.roundRect(W * 0.02, H * 0.02, W * 0.22, H * 0.08, 16);
-  ctx.fill();
-  ctx.strokeStyle = '#ffd43b';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  ctx.fillStyle = '#2d6a4f';
-  ctx.font = `bold ${Math.min(W, H) * 0.035}px 'Comic Sans MS', sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`Found: ${foundCount} / ${animals.length}`, W * 0.04, H * 0.06);
-  ctx.restore();
-}
-
-function drawWinScreen() {
-  const overlay = 0.6 + Math.sin(Date.now() * 0.003) * 0.1;
-  ctx.fillStyle = `rgba(0,0,0,${overlay})`;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.4)';
-  ctx.shadowBlur = 12;
-  ctx.shadowOffsetY = 6;
-
-  // Banner
-  ctx.fillStyle = '#ffd43b';
-  ctx.beginPath();
-  ctx.roundRect(W / 2 - W * 0.35, H / 2 - H * 0.22, W * 0.70, H * 0.44, 24);
-  ctx.fill();
-  ctx.strokeStyle = '#e67700';
-  ctx.lineWidth = 5;
-  ctx.stroke();
-
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-
-  // Text
-  ctx.fillStyle = '#2d6a4f';
-  ctx.font = `bold ${Math.min(W, H) * 0.065}px 'Comic Sans MS', sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('Good Game, Bobo!', W / 2, H / 2 - H * 0.08);
-
-  ctx.fillStyle = '#e67700';
-  ctx.font = `${Math.min(W, H) * 0.04}px 'Comic Sans MS', sans-serif`;
-  ctx.fillText(`You found all ${animals.length} animals!`, W / 2, H / 2 + H * 0.02);
-
-  // Play again button
-  const btnY = H / 2 + H * 0.12;
-  const btnW = W * 0.30;
-  const btnH = H * 0.08;
-  ctx.fillStyle = '#51cf66';
-  ctx.beginPath();
-  ctx.roundRect(W / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 16);
-  ctx.fill();
-  ctx.strokeStyle = '#2b8a3e';
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.min(W, H) * 0.04}px 'Comic Sans MS', sans-serif`;
-  ctx.fillText('Play Again 🔄', W / 2, btnY);
-
-  ctx.restore();
-}
-
-function drawHint() {
-  if (gameOver || foundCount === animals.length) return;
-  ctx.save();
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.beginPath();
-  ctx.roundRect(W * 0.25, H * 0.90, W * 0.50, H * 0.07, 12);
-  ctx.fill();
-  ctx.fillStyle = '#495057';
-  ctx.font = `${Math.min(W, H) * 0.028}px 'Comic Sans MS', sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('Click the peeking eyes to find the animals! 👀', W / 2, H * 0.935);
-  ctx.restore();
-}
-
-// Main loop
-function update() {
-  if (!gameStarted && Date.now() - startTime > 500) gameStarted = true;
-  updateParticles();
-}
-
-function draw() {
-  ctx.clearRect(0, 0, W, H);
-  drawBackground();
-
-  animals.forEach(a => drawAnimal(a));
-  drawParticles();
-  drawTitle();
-  drawUI();
-  drawHint();
-
-  if (gameOver) drawWinScreen();
-}
-
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-// Input
-function handleClick(e) {
-  initAudio();
-  const rect = canvas.getBoundingClientRect();
-  const mx = (e.clientX || e.touches?.[0]?.clientX || 0) - rect.left;
-  const my = (e.clientY || e.touches?.[0]?.clientY || 0) - rect.top;
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = mx * scaleX;
-  const y = my * scaleY;
-
-  if (gameOver) {
-    const btnY = H / 2 + H * 0.12;
-    const btnW = W * 0.30;
-    const btnH = H * 0.08;
-    if (x > W / 2 - btnW / 2 && x < W / 2 + btnW / 2 &&
-        y > btnY - btnH / 2 && y < btnY + btnH / 2) {
-      playBounce();
-      resetGame();
-    }
-    return;
-  }
-
-  let foundOne = false;
-  animals.forEach(a => {
-    if (a.found) return;
-    const ax = a.x * W;
-    const ay = a.y * H;
-    const r = Math.min(W, H) * 0.06;
-    const dx = x - ax;
-    const dy = y - ay;
-    if (dx * dx + dy * dy < r * r) {
-      a.found = true;
-      foundCount++;
-      foundOne = true;
-      spawnParticles(ax, ay, a.color);
-      playFound();
-    }
-  });
-
-  if (!foundOne) {
-    playPop();
-  }
-
-  if (foundCount === animals.length && !gameOver) {
-    gameOver = true;
-    setTimeout(() => playWinMusic(), 400);
-  }
-}
-
-canvas.addEventListener('mousedown', handleClick);
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleClick(e); }, {passive:false});
 
 muteBtn.addEventListener('click', () => {
+  initAudio();
   muted = !muted;
   muteBtn.textContent = muted ? '🔇' : '🔊';
 });
 
-// Start
-loop();
+// Game data
+const SHAPES = [
+  { name: 'circle',  emoji: '🍎', color: '#ff6b6b', animalEmoji: '🦁', animalName: 'Lion',    animalColor: '#fcc419' },
+  { name: 'square',  emoji: '🧀', color: '#ffd43b', animalEmoji: '🐘', animalName: 'Elephant', animalColor: '#74c0fc' },
+  { name: 'star',    emoji: '🍪', color: '#e8590c', animalEmoji: '🐻', animalName: 'Bear',     animalColor: '#d3a17e' },
+  { name: 'triangle',emoji: '🥕', color: '#fd7e14', animalEmoji: '🐰', animalName: 'Bunny',    animalColor: '#ff922b' },
+  { name: 'heart',   emoji: '🍓', color: '#f06595', animalEmoji: '🐵', animalName: 'Monkey',   animalColor: '#8ce99a' }
+];
+
+let state = 'playing'; // playing, won
+let animals = [];
+let foods = [];
+let particles = [];
+let confetti = [];
+let dragFood = null;
+let dragX = 0, dragY = 0;
+let fedCount = 0;
+let winTimer = 0;
+
+function rand(min, max) { return Math.random() * (max - min) + min; }
+
+function makeSparkle(x, y, color) {
+  const p = [];
+  for (let i = 0; i < 16; i++) {
+    const ang = (Math.PI * 2 / 16) * i + rand(0, 0.5);
+    p.push({
+      x, y,
+      vx: Math.cos(ang) * rand(2, 7),
+      vy: Math.sin(ang) * rand(2, 7),
+      life: 1,
+      color: color || '#ffe066',
+      size: rand(4, 8),
+      gravity: 0.12,
+      rot: 0,
+      rotSpeed: 0
+    });
+  }
+  return p;
+}
+
+function makeConfetti(x, y) {
+  const colors = ['#ff6b6b', '#fcc419', '#74c0fc', '#8ce99a', '#da77f2', '#ff922b', '#f06595'];
+  const p = [];
+  for (let i = 0; i < 60; i++) {
+    const ang = rand(0, Math.PI * 2);
+    p.push({
+      x, y,
+      vx: Math.cos(ang) * rand(4, 14),
+      vy: Math.sin(ang) * rand(4, 14) - 5,
+      life: 1,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: rand(6, 16),
+      gravity: rand(0.15, 0.35),
+      rot: rand(0, Math.PI * 2),
+      rotSpeed: rand(-0.2, 0.2)
+    });
+  }
+  return p;
+}
+
+function initGame() {
+  animals = [];
+  foods = [];
+  fedCount = 0;
+  state = 'playing';
+  winTimer = 0;
+
+  const cols = Math.min(5, Math.floor(W / 160));
+  const rows = Math.ceil(SHAPES.length / cols);
+  const padX = W * 0.08;
+  const padY = H * 0.12;
+  const availW = W - padX * 2;
+  const availH = H * 0.45 - padY;
+  const cellW = availW / cols;
+  const cellH = availH / rows;
+
+  SHAPES.forEach((s, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    animals.push({
+      x: padX + cellW * col + cellW / 2,
+      y: padY + cellH * row + cellH / 2,
+      size: Math.min(110, cellW * 0.7, cellH * 0.7),
+      shape: s,
+      fed: false,
+      bounce: 0,
+      wiggle: 0
+    });
+  });
+
+  // Food tray at bottom
+  const trayY = H * 0.72;
+  const foodSize = Math.min(80, W / 7);
+  const gap = Math.min(18, W / 24);
+  const totalW = SHAPES.length * foodSize + (SHAPES.length - 1) * gap;
+  let startX = (W - totalW) / 2 + foodSize / 2;
+
+  SHAPES.forEach((s, i) => {
+    foods.push({
+      x: startX + i * (foodSize + gap),
+      y: trayY,
+      size: foodSize,
+      shape: s,
+      origX: startX + i * (foodSize + gap),
+      origY: trayY,
+      drag: false,
+      bounce: 0,
+      visible: true
+    });
+  });
+}
+
+initGame();
+
+function getPointerPos(e) {
+  if (e.touches && e.touches.length > 0) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  return { x: e.clientX, y: e.clientY };
+}
+
+function handleStart(e) {
+  if (state !== 'playing') return;
+  initAudio();
+  const p = getPointerPos(e);
+  // Check food tray
+  for (let f of foods) {
+    if (!f.visible) continue;
+    const dx = p.x - f.x;
+    const dy = p.y - f.y;
+    if (Math.sqrt(dx*dx + dy*dy) < f.size * 0.55) {
+      dragFood = f;
+      f.drag = true;
+      dragX = p.x;
+      dragY = p.y;
+      playPop();
+      break;
+    }
+  }
+}
+
+function handleMove(e) {
+  if (!dragFood) return;
+  const p = getPointerPos(e);
+  dragX = p.x;
+  dragY = p.y;
+  dragFood.x = dragX;
+  dragFood.y = dragY;
+}
+
+function handleEnd(e) {
+  if (!dragFood) return;
+  initAudio();
+
+  // Check if over any animal
+  let matched = false;
+  for (let a of animals) {
+    if (a.fed) continue;
+    const dx = dragFood.x - a.x;
+    const dy = dragFood.y - a.y;
+    if (Math.sqrt(dx*dx + dy*dy) < a.size * 0.7) {
+      if (dragFood.shape.name === a.shape.name) {
+        // Correct match!
+        a.fed = true;
+        a.bounce = 1;
+        dragFood.visible = false;
+        fedCount++;
+        matched = true;
+        playCorrect();
+        particles.push(...makeSparkle(a.x, a.y, a.shape.color));
+        particles.push(...makeSparkle(a.x, a.y, '#fff'));
+
+        if (fedCount >= SHAPES.length) {
+          state = 'won';
+          winTimer = 0.5;
+          playWinMusic();
+          confetti.push(...makeConfetti(W / 2, H * 0.4));
+        }
+      } else {
+        // Wrong match
+        a.wiggle = 1;
+        playWrong();
+      }
+      break;
+    }
+  }
+
+  if (!matched) {
+    // Return to tray
+    dragFood.x = dragFood.origX;
+    dragFood.y = dragFood.origY;
+    dragFood.bounce = 1;
+  }
+
+  dragFood.drag = false;
+  dragFood = null;
+}
+
+canvas.addEventListener('mousedown', handleStart);
+canvas.addEventListener('mousemove', handleMove);
+window.addEventListener('mouseup', handleEnd);
+
+canvas.addEventListener('touchstart', e => { e.preventDefault(); handleStart(e); }, {passive: false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e); }, {passive: false});
+window.addEventListener('touchend', e => { handleEnd(e); });
+
+let lastT = performance.now();
+
+function update(dt) {
+  if (state === 'won') {
+    winTimer -= dt;
+    if (winTimer <= 0 && confetti.length < 200 && Math.random() < 0.3) {
+      confetti.push(...makeConfetti(rand(W*0.2, W*0.8), H * 0.3));
+    }
+  }
+
+  // Animal bounce
+  animals.forEach(a => {
+    if (a.bounce > 0) {
+      a.bounce -= dt * 3;
+      if (a.bounce < 0) a.bounce = 0;
+    }
+    if (a.wiggle > 0) {
+      a.wiggle -= dt * 5;
+      if (a.wiggle < 0) a.wiggle = 0;
+    }
+  });
+
+  // Food bounce
+  foods.forEach(f => {
+    if (f.bounce > 0) {
+      f.bounce -= dt * 4;
+      if (f.bounce < 0) f.bounce = 0;
+    }
+  });
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += p.gravity;
+    p.life -= dt * 1.8;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Confetti
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const p = confetti[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += p.gravity;
+    p.life -= 0.006;
+    p.rot += p.rotSpeed;
+    if (p.life <= 0) confetti.splice(i, 1);
+  }
+}
+
+function drawShape(shapeName, x, y, size, color, filled) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = filled ? color : 'rgba(255,255,255,0.7)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(4, size * 0.08);
+
+  switch(shapeName) {
+    case 'circle':
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.4, 0, Math.PI * 2);
+      if (filled) ctx.fill(); else { ctx.fill(); ctx.stroke(); }
+      break;
+    case 'square':
+      ctx.beginPath();
+      ctx.rect(-size * 0.35, -size * 0.35, size * 0.7, size * 0.7);
+      if (filled) ctx.fill(); else { ctx.fill(); ctx.stroke(); }
+      break;
+    case 'star': {
+      const outer = size * 0.42;
+      const inner = size * 0.2;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? outer : inner;
+        const ang = (Math.PI * 2 / 10) * i - Math.PI / 2;
+        if (i === 0) ctx.moveTo(Math.cos(ang) * r, Math.sin(ang) * r);
+        else ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+      }
+      ctx.closePath();
+      if (filled) ctx.fill(); else { ctx.fill(); ctx.stroke(); }
+      break;
+    }
+    case 'triangle':
+      ctx.beginPath();
+      ctx.moveTo(0, -size * 0.4);
+      ctx.lineTo(size * 0.38, size * 0.35);
+      ctx.lineTo(-size * 0.38, size * 0.35);
+      ctx.closePath();
+      if (filled) ctx.fill(); else { ctx.fill(); ctx.stroke(); }
+      break;
+    case 'heart': {
+      const s = size * 0.22;
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.6);
+      ctx.bezierCurveTo(-s * 1.8, -s * 0.8, -s * 1.8, -s * 1.8, 0, -s * 1.2);
+      ctx.bezierCurveTo(s * 1.8, -s * 1.8, s * 1.8, -s * 0.8, 0, s * 0.6);
+      ctx.closePath();
+      if (filled) ctx.fill(); else { ctx.fill(); ctx.stroke(); }
+      break;
+    }
+  }
+  ctx.restore();
+}
+
+function drawRoundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function draw() {
+  // Background - safari gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#a9e34b');
+  grad.addColorStop(0.4, '#d8f5a2');
+  grad.addColorStop(0.7, '#e9fac8');
+  grad.addColorStop(1, '#c5f6fa');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Ground
+  ctx.fillStyle = '#b1976b';
+  ctx.fillRect(0, H * 0.58, W, H * 0.42);
+  ctx.fillStyle = '#a0855a';
+  ctx.fillRect(0, H * 0.58, W, 8);
+
+  // Grass tufts
+  ctx.fillStyle = '#82c91e';
+  for (let i = 0; i < 20; i++) {
+    const gx = (W / 20) * i + rand(0, 20);
+    const gy = H * 0.58 - rand(4, 12);
+    ctx.beginPath();
+    ctx.ellipse(gx, gy, 6, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Title
+  ctx.fillStyle = '#2b8a3e';
+  ctx.font = 'bold ' + Math.min(44, W / 8) + 'px Comic Sans MS, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(255,255,255,0.6)';
+  ctx.shadowBlur = 8;
+  ctx.fillText("Bobo's Shape Safari", W / 2, 14);
+  ctx.shadowBlur = 0;
+
+  if (state === 'playing') {
+    ctx.fillStyle = '#5c3a1e';
+    ctx.font = 'bold ' + Math.min(20, W / 16) + 'px Comic Sans MS, sans-serif';
+    ctx.fillText('Drag the food to feed the hungry animals!', W / 2, 60);
+  }
+
+  // Animals
+  animals.forEach(a => {
+    const bounceScale = 1 + Math.sin((1 - a.bounce) * Math.PI) * 0.2;
+    const wiggleOff = Math.sin(a.wiggle * Math.PI * 6) * a.wiggle * 12;
+
+    ctx.save();
+    ctx.translate(a.x + wiggleOff, a.y);
+    ctx.scale(bounceScale, bounceScale);
+
+    // Animal shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath();
+    ctx.ellipse(0, a.size * 0.48, a.size * 0.42, a.size * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Animal body circle background
+    ctx.fillStyle = a.shape.animalColor;
+    ctx.beginPath();
+    ctx.arc(0, 0, a.size * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Shape cutout (draw white background for shape hole)
+    drawShape(a.shape.name, 0, a.size * 0.02, a.size * 0.65, '#fff', true);
+
+    // Draw shape outline
+    drawShape(a.shape.name, 0, a.size * 0.02, a.size * 0.65, a.shape.color, false);
+
+    // Animal emoji
+    ctx.font = (a.size * 0.5) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(a.shape.animalEmoji, 0, -a.size * 0.12);
+
+    // Name label
+    ctx.fillStyle = '#5c3a1e';
+    ctx.font = 'bold ' + Math.min(14, a.size * 0.16) + 'px Comic Sans MS, sans-serif';
+    ctx.fillText(a.shape.animalName, 0, a.size * 0.42);
+
+    // Fed checkmark
+    if (a.fed) {
+      ctx.fillStyle = '#51cf66';
+      ctx.beginPath();
+      ctx.arc(a.size * 0.32, -a.size * 0.32, a.size * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(a.size * 0.26, -a.size * 0.32);
+      ctx.lineTo(a.size * 0.30, -a.size * 0.26);
+      ctx.lineTo(a.size * 0.38, -a.size * 0.38);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  });
+
+  // Food tray background
+  const trayH = Math.min(120, H * 0.2);
+  const trayY = H - trayH - 8;
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  drawRoundedRect(12, trayY + 4, W - 24, trayH, 20);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  drawRoundedRect(12, trayY, W - 24, trayH, 20);
+  ctx.fill();
+
+  // Foods
+  foods.forEach(f => {
+    if (!f.visible) return;
+    const bounceScale = 1 + Math.sin((1 - f.bounce) * Math.PI) * 0.15;
+    const isDrag = f.drag;
+    const scale = isDrag ? 1.15 : bounceScale;
+
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.scale(scale, scale);
+
+    if (!isDrag) {
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.1)';
+      ctx.beginPath();
+      ctx.ellipse(4, f.size * 0.38, f.size * 0.38, f.size * 0.1, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Food background
+    ctx.fillStyle = f.shape.color;
+    ctx.globalAlpha = 0.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, f.size * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Border
+    ctx.strokeStyle = f.shape.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, f.size * 0.45, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Food emoji
+    ctx.font = (f.size * 0.5) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(f.shape.emoji, 0, -2);
+
+    // Shape name
+    ctx.fillStyle = '#5c3a1e';
+    ctx.font = 'bold ' + Math.min(12, f.size * 0.16) + 'px Comic Sans MS, sans-serif';
+    ctx.fillText(f.shape.name.charAt(0).toUpperCase() + f.shape.name.slice(1), 0, f.size * 0.42);
+
+    ctx.restore();
+  });
+
+  // Progress
+  if (state === 'playing') {
+    ctx.fillStyle = '#5c3a1e';
+    ctx.font = 'bold ' + Math.min(22, W / 14) + 'px Comic Sans MS, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Fed: ' + fedCount + ' / ' + SHAPES.length, W / 2, H * 0.62);
+  }
+
+  // Win screen
+  if (state === 'won') {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Big celebration text
+    const pulse = 1 + Math.sin(performance.now() / 300) * 0.06;
+    ctx.save();
+    ctx.translate(W / 2, H * 0.28);
+    ctx.scale(pulse, pulse);
+
+    ctx.fillStyle = '#fcc419';
+    ctx.font = 'bold ' + Math.min(64, W / 6) + 'px Comic Sans MS, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 10;
+    ctx.fillText('Good Game, Bobo!', 0, 0);
+    ctx.shadowBlur = 0;
+
+    ctx.restore();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + Math.min(28, W / 12) + 'px Comic Sans MS, sans-serif';
+    ctx.fillText('You fed all the animals! 🎉', W / 2, H * 0.38);
+
+    ctx.font = 'bold ' + Math.min(22, W / 16) + 'px Comic Sans MS, sans-serif';
+    ctx.fillText('Tap to play again', W / 2, H * 0.45);
+  }
+
+  // Particles
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.translate(p.x, p.y);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // Confetti
+  confetti.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+    ctx.restore();
+  });
+
+  ctx.globalAlpha = 1;
+}
+
+function handleWinTap(e) {
+  if (state === 'won') {
+    const p = getPointerPos(e);
+    initAudio();
+    playCheer();
+    initGame();
+  }
+}
+
+canvas.addEventListener('mousedown', handleWinTap);
+canvas.addEventListener('touchstart', e => { if (state === 'won') { e.preventDefault(); handleWinTap(e); } }, {passive: false});
+
+function loop(now) {
+  const dt = Math.min((now - lastT) / 1000, 0.1);
+  lastT = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
